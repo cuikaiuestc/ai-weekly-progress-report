@@ -66,7 +66,7 @@ This structure should combine the readability of a progress report with the capa
 
 Group complex work into project-level movements when multiple signals point to the same business or operating-system project. This section should not repeat individual skill bullets from `一、本周进度与产出`.
 
-Project titles must be meaningful local project or business initiative names. Use names from paths, files, prompts, sessions, reports, commits, or leader confirmation when they exist, such as `XMP 官网蒸馏`, `数据分析`, `date-solution`, or a human-supplied project name. Do not use parent folder buckets such as `projects`, `project`, `2026 05 03`, `new-chat`, `output`, or tool cache names as the displayed project title. If only a bucket name exists, keep the item as a weak follow-up candidate or merge it into a broader neutral theme.
+Project titles must be meaningful local project or business initiative names. Use names from paths, files, prompts, sessions, reports, commits, or leader confirmation when they exist, such as a named data-analysis project, a named content workflow, a named internal automation, or a human-supplied project name. Do not use parent folder buckets such as `projects`, `project`, date folders, `new-chat`, `output`, or tool cache names as the displayed project title. If only a bucket name exists, keep the item as a weak follow-up candidate or merge it into a broader neutral theme.
 
 Each body item must include:
 

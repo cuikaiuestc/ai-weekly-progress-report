@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.3
+
+- Removed `test-prompts.json` from distributable runtime bundles so teammate installs do not carry QA prompt vocabulary into skill context.
+- Replaced concrete author-project examples in runtime guidance with neutral placeholders.
+- Tightened project synthesis so domain-specific themes such as 投放, SEO, 知识库, 蒸馏, or XMP require strong current-reporter evidence instead of broad keyword matches.
+- Excluded AI-tool internal state and global `skills/` libraries from project evidence when a tool root such as `~/.qclaw` is passed as a project root.
+- Added regression coverage for teammate reports that should keep SmartBI/SCRM evidence while excluding unrelated knowledge-distillation and ads themes.
+
 ## 0.2.2
 
 - Changed the default weekly report body to stop at `三、下周计划与需协调事项`; evidence remains in `evidence.json` and the supplement guide instead of a final appendix.

@@ -260,6 +260,44 @@ REPORT_PACKAGE_RUNTIME_FILES = {
     "test-prompts.json",
 }
 
+TOOL_ROOT_NAMES = {
+    ".codex",
+    ".qclaw",
+    ".trae",
+    ".trae-cn",
+    ".claude",
+}
+
+TOOL_INTERNAL_DIRS = {
+    ".auto-memory",
+    "agents",
+    "backups",
+    "devices",
+    "logs",
+    "plugins",
+    "qmemory",
+    "sync",
+}
+
+TOOL_INTERNAL_FILES = {
+    ".consolidate-state.json",
+    "config-audit.jsonl",
+    "config-cache.json",
+    "config-health.json",
+    "models.json",
+    "openclaw.json",
+    "qclaw.json",
+    "sessions.json",
+    "skill-usage.json",
+    "workspace-state.json",
+}
+
+WORKSPACE_MEMORY_FILES = {
+    "IDENTITY.md",
+    "MEMORY.md",
+    "SOUL.md",
+}
+
 # Default team reports use generic evidence classification.
 # Author-specific project maps were intentionally removed from the distributable
 # collector to prevent cross-user leakage.
@@ -364,6 +402,50 @@ def is_report_package_artifact(value: Any) -> bool:
     first = tail[0]
     last = tail[-1]
     return first in REPORT_PACKAGE_RUNTIME_DIRS or last in {name.lower() for name in REPORT_PACKAGE_RUNTIME_FILES}
+
+
+def is_installed_tool_skill_artifact(value: Any) -> bool:
+    """Exclude globally installed tool skills from project evidence.
+
+    A tool root such as ~/.qclaw can contain real workspace artifacts, but its
+    `skills/` folder is an installed capability library. Those files may contain
+    third-party descriptions or package QA examples and must not become the
+    reporter's weekly achievements.
+    """
+    normalized = str(value or "").replace("\\", "/").lower()
+    parts = [part for part in normalized.split("/") if part]
+    for index, part in enumerate(parts[:-1]):
+        if part in TOOL_ROOT_NAMES and parts[index + 1] == "skills":
+            return True
+    return False
+
+
+def is_tool_internal_nonproject_artifact(value: Any) -> bool:
+    """Exclude tool state, memory, session, and config files from project evidence."""
+    normalized = str(value or "").replace("\\", "/")
+    lower = normalized.lower()
+    parts = [part for part in lower.split("/") if part]
+    original_parts = [part for part in normalized.split("/") if part]
+    for index, part in enumerate(parts):
+        if part not in TOOL_ROOT_NAMES:
+            continue
+        tail = parts[index + 1 :]
+        original_tail = original_parts[index + 1 :]
+        if not tail:
+            return False
+        if tail[0] in TOOL_INTERNAL_DIRS:
+            return True
+        if tail[0] == "skills":
+            return True
+        if tail[-1] in TOOL_INTERNAL_FILES:
+            return True
+        if tail[0].startswith("workspace") and len(tail) > 1:
+            if tail[1] in {"memory", ".openclaw"}:
+                return True
+            if original_tail[-1] in WORKSPACE_MEMORY_FILES:
+                return True
+        return False
+    return False
 
 
 def nearest_report_package_root(path: Path) -> Path | None:
@@ -628,6 +710,10 @@ def collect_project_files(project_roots: list[str], cutoff: dt.datetime, limit: 
             if is_generated_report_artifact(file_path):
                 continue
             if is_report_package_artifact(file_path):
+                continue
+            if is_installed_tool_skill_artifact(file_path):
+                continue
+            if is_tool_internal_nonproject_artifact(file_path):
                 continue
             if is_sensitive(file_path):
                 continue
@@ -1126,6 +1212,10 @@ def build_project_level_projects(evidence: dict[str, Any]) -> list[dict[str, Any
         path_text = str(file_item.get("path", ""))
         if not path_text or is_report_package_artifact(path_text):
             continue
+        if is_installed_tool_skill_artifact(path_text):
+            continue
+        if is_tool_internal_nonproject_artifact(path_text):
+            continue
         path = Path(path_text)
         key, title = infer_project_group(path, project_roots)
         group = ensure_group(key, title)
@@ -1194,6 +1284,11 @@ def build_project_level_projects(evidence: dict[str, Any]) -> list[dict[str, Any
 
 
 def infer_project_group(path: Path, project_roots: list[Path]) -> tuple[str, str]:
+    tool_group = infer_tool_path_group_name(str(path))
+    if tool_group:
+        tool_name, name = tool_group
+        key = f"{tool_name}:{name}".lower()
+        return key, f"项目推进：{humanize_project_name(name)}"
     try:
         resolved = path.resolve()
     except OSError:
@@ -1206,7 +1301,9 @@ def infer_project_group(path: Path, project_roots: list[Path]) -> tuple[str, str
         parts = rel.parts
         if not parts:
             break
-        if parts[0] in {"projects", "project"} and len(parts) > 1:
+        if root.name.lower() in TOOL_ROOT_NAMES and parts[0].lower().startswith("workspace"):
+            name = infer_workspace_project_name(parts, root.name)
+        elif parts[0] in {"projects", "project"} and len(parts) > 1:
             name = parts[1]
         elif re.fullmatch(r"20\d{2}-\d{2}-\d{2}", parts[0]) and len(parts) > 1:
             name = parts[1]
@@ -1220,6 +1317,36 @@ def infer_project_group(path: Path, project_roots: list[Path]) -> tuple[str, str
         return key, f"项目推进：{humanize_project_name(name)}"
     name = resolved.parent.name if resolved.suffix else resolved.name
     return str(resolved.parent).lower(), f"项目推进：{humanize_project_name(name)}"
+
+
+def infer_workspace_project_name(parts: tuple[str, ...], fallback: str) -> str:
+    if len(parts) > 2 and parts[1] not in {"memory", ".openclaw"}:
+        return parts[1]
+    if len(parts) > 1:
+        stem = Path(parts[-1]).stem.lower()
+        for marker in ("smartbi", "scrm", "weisheng", "waiqu", "excel", "bi"):
+            if marker in stem:
+                return marker
+        return stem or fallback
+    return fallback
+
+
+def infer_tool_path_group_name(value: str) -> tuple[str, str] | None:
+    normalized = str(value or "").replace("\\", "/")
+    parts = [part for part in normalized.split("/") if part]
+    for index, part in enumerate(parts):
+        if part.lower() not in TOOL_ROOT_NAMES:
+            continue
+        tail = tuple(parts[index + 1 :])
+        if not tail:
+            return None
+        if tail[0].lower().startswith("workspace"):
+            return part, infer_workspace_project_name(tail, part)
+        if tail[0].lower() == "media" and len(tail) > 1:
+            stem = Path(tail[-1]).stem
+            return part, stem or tail[1]
+        return None
+    return None
 
 
 def humanize_project_name(name: str) -> str:
@@ -1242,12 +1369,8 @@ def generic_project_goal(group: dict[str, Any]) -> str:
         return "把外呼、分期、成本清洗和业务复盘流程整理为可复核的数据运营方法。"
     if "数据分析" in title_context:
         return "把业务数据、分析口径和报表需求整理为可复核、可交接的分析交付流程。"
-    if any(term in context for term in ("seo", "meta", "facebook", "ads", "google seo", "投放", "增长")):
-        return "把投放、SEO 和平台知识整理为可查询、可复用的增长运营知识资产。"
     if any(term in context for term in ("date solution", "外呼", "aftee", "分期", "供应商", "成本", "号码", "出站")):
         return "把外呼、分期、成本清洗和业务复盘流程整理为可复核的数据运营方法。"
-    if any(term in context for term in ("知识学习", "爬虫", "wechat", "公众号", "归档", "知识库", "蒸馏", "xmp", "help center")):
-        return "把外部资料采集、归档和知识整理流程沉淀为可复用的学习与知识库建设方法。"
     if any(term in context for term in ("video creator", "内容创作", "seedance", "gpt image", "storyboard", "prompt", "素材", "视频", "短片", "分镜")):
         return "把内容素材、提示词组织和视频生成流程沉淀为可复用的内容生产方法。"
     if any(term in context for term in ("数据分析", "api_requirements", "报表", "分析", "xlsx", "csv", "看板")):
@@ -1364,20 +1487,10 @@ def project_business_copy(group: dict[str, Any], goal: str) -> tuple[str, str]:
             "围绕业务数据、分析口径和报表需求，整理可复核、可交接的分析交付流程。",
             "提升数据复盘的可靠性和管理可读性，帮助团队更快判断业务问题、优先级和后续投入方向。",
         )
-    if any(term in context for term in ("seo", "meta", "facebook", "ads", "google seo", "投放", "增长")):
-        return (
-            "围绕投放、SEO 和平台规则知识，建立可查询、可更新、可复用的增长运营知识资产。",
-            "降低平台知识分散带来的判断成本，提升投放诊断、SEO 优化和跨项目增长支持的响应效率。",
-        )
     if any(term in context for term in ("date solution", "外呼", "aftee", "分期", "供应商", "成本", "号码", "出站")):
         return (
             "围绕外呼、分期、成本清洗和业务复盘流程，沉淀数据处理、异常判断和复盘交付方法。",
             "帮助业务团队更快统一数据口径、定位流程问题和识别供应商表现差异，提升复盘效率和后续决策质量。",
-        )
-    if any(term in context for term in ("知识学习", "爬虫", "wechat", "公众号", "归档", "知识库", "蒸馏", "xmp", "help center")):
-        return (
-            "围绕外部资料采集、文章归档和知识蒸馏流程，建立从资料获取到结构化复用的知识生产链路。",
-            "让高价值资料从一次性阅读转化为可检索、可复盘、可继续加工的知识资产，支撑培训、研究和业务问答。",
         )
     if any(term in context for term in ("video creator", "内容创作", "seedance", "gpt image", "storyboard", "prompt", "素材", "视频", "短片", "分镜")):
         return (
@@ -1442,6 +1555,8 @@ def build_initiatives(evidence: dict[str, Any]) -> list[dict[str, Any]]:
         item
         for item in evidence.get("project_files", [])
         if not is_report_package_artifact(item.get("path", ""))
+        and not is_installed_tool_skill_artifact(item.get("path", ""))
+        and not is_tool_internal_nonproject_artifact(item.get("path", ""))
     ]
     commits = [
         commit
@@ -1579,8 +1694,6 @@ def render_executive_summary(progress_items: list[str], tools: list[dict[str, An
             "- 当前周报只保留可核对的项目、文件、会话和本机资产线索，避免把弱证据写成已完成成果。"
         )
 
-    if any(term in evidence_text for term in ("知识库", "蒸馏", "knowledge-base", "orchestrator", "distiller")):
-        lines.append("- 本周 AI 化工作从单次资料处理进一步走向知识资产沉淀，采集、整理、调用和复用开始形成连续流程。")
     if "custom_skill" in evidence_text or "项目本地自定义 skill" in evidence_text or "工作流资产" in evidence_text:
         lines.append("- 高频重复任务开始沉淀为可复用工作流，团队后续可以围绕统一入口复盘、培训和交接。")
     elif any(term in evidence_text for term in ("工作流", "workflow", "自动化", "pipeline")):

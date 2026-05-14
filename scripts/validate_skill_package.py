@@ -22,7 +22,6 @@ REQUIRED = [
     "scripts/collect_ai_weekly_report.py",
     "scripts/build_bundle.py",
     "templates/weekly-report.md.j2",
-    "test-prompts.json",
 ]
 
 PROMPT_FIELDS = {"id", "prompt", "mode_expected", "must_check", "must_not_do", "score_focus"}
@@ -51,16 +50,18 @@ def main() -> int:
         if term not in openai_yaml:
             errors.append(f"agents/openai.yaml missing {term}")
 
-    try:
-        prompts = json.loads((root / "test-prompts.json").read_text(encoding="utf-8"))
-        if not isinstance(prompts, list) or len(prompts) < 4:
-            errors.append("test-prompts.json must contain at least 4 regression cases")
-        for index, item in enumerate(prompts, start=1):
-            missing = PROMPT_FIELDS - set(item)
-            if missing:
-                errors.append(f"test-prompts.json case {index} missing fields: {', '.join(sorted(missing))}")
-    except Exception as exc:  # noqa: BLE001
-        errors.append(f"test-prompts.json parse failed: {exc}")
+    prompts_path = root / "test-prompts.json"
+    if prompts_path.exists():
+        try:
+            prompts = json.loads(prompts_path.read_text(encoding="utf-8"))
+            if not isinstance(prompts, list) or len(prompts) < 4:
+                errors.append("test-prompts.json must contain at least 4 regression cases")
+            for index, item in enumerate(prompts, start=1):
+                missing = PROMPT_FIELDS - set(item)
+                if missing:
+                    errors.append(f"test-prompts.json case {index} missing fields: {', '.join(sorted(missing))}")
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"test-prompts.json parse failed: {exc}")
 
     if errors:
         print(json.dumps({"ok": False, "errors": errors}, ensure_ascii=False, indent=2))

@@ -18,7 +18,7 @@
 
 ## 安装新包
 
-把 `dist/ai-weekly-progress-report-0.2.2.zip` 解压到当前 AI 工具的全局 Skills 目录，目录名必须保持为：
+把 `dist/ai-weekly-progress-report-0.2.3.zip` 解压到当前 AI 工具的全局 Skills 目录，目录名必须保持为：
 
 ```text
 ai-weekly-progress-report
@@ -26,7 +26,7 @@ ai-weekly-progress-report
 
 安装后确认：
 
-- `ai-weekly-progress-report/VERSION` 是 `0.2.2`
+- `ai-weekly-progress-report/VERSION` 是 `0.2.3`
 - 包内存在 `SKILL.md`
 - 包内存在 `scripts/collect_ai_weekly_report.py`
 

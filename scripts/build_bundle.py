@@ -17,6 +17,10 @@ EXCLUDE_PARTS = {
     "tests",
 }
 
+EXCLUDE_FILES = {
+    "test-prompts.json",
+}
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build ai-weekly-progress-report zip bundle.")
@@ -26,7 +30,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def should_include(path: Path) -> bool:
-    return not any(part in EXCLUDE_PARTS for part in path.parts) and not path.name.endswith(".pyc")
+    return (
+        path.name not in EXCLUDE_FILES
+        and not any(part in EXCLUDE_PARTS for part in path.parts)
+        and not path.name.endswith(".pyc")
+    )
 
 
 def main() -> int:
